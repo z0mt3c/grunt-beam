@@ -71,12 +71,26 @@ module.exports = function (grunt) {
             var i = 0;
             async.eachSeries(options.servers, function (oServer, next) {
                 var server = _.extend({}, beamDefaultServerOptions, oServer);
-                grunt.log.subhead('Deployment on '+server.host+' (' + (++i) + ' of ' + options.servers.length + ')');
+                var readyMsg;
+                var type;
+
+                if (removeDeployment) {
+                    type = 'Undeploy'
+                    readyMsg = 'Ready to undeploy and remove all related files from server (or skip this server)?';
+                } else if (undeploy) {
+                    type = 'Undeploy'
+                    readyMsg = 'Ready to undeploy (or skip this server)?';
+                } else {
+                    type = 'Deploy'
+                    readyMsg = 'Ready to start deployment (or skip this server)?';
+                }
+
+                grunt.log.subhead(type + ' on '+server.host+' (' + (++i) + ' of ' + options.servers.length + ')');
                 inquirer.prompt([
                     {
                         type: 'confirm',
                         name: 'deploy',
-                        message: 'Ready to start deployment (or skip)?',
+                        message: readyMsg,
                         default: true
                     },
                     {
