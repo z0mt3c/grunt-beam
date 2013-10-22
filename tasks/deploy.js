@@ -1,5 +1,19 @@
 'use strict';
 
+var path = require('path');
+var inquirer = require('inquirer');
+var async = require('async');
+var Connection = require('ssh2');
+var _ = require('underscore');
+
+var beamDefaultServerOptions = {
+    enterCredentials: false,
+    agent: process.env.SSH_AUTH_SOCK,
+    pingInterval: 3000,
+    port: 22,
+    username: 'root'
+};
+
 module.exports = function (grunt) {
     grunt.registerTask('beam', 'Prepare deployment', function (group) {
         // rough config check
@@ -8,14 +22,8 @@ module.exports = function (grunt) {
         grunt.config.requires('beam.' + group + '.path');
         var options = grunt.config.get('beam.' + group);
 
-        // require dependencies
         var self = this;
         var done = self.async();
-        var path = require('path');
-        var inquirer = require('inquirer');
-        var async = require('async');
-        var Connection = require('ssh2');
-        var _ = require('underscore');
         var undeploy = grunt.option('undeploy') === true;
         var removeDeployment = grunt.option('remove') === true;
         var rollback = grunt.option('rollback');
@@ -61,18 +69,43 @@ module.exports = function (grunt) {
 
         var connect = function (cb, completed) {
             var i = 0;
-            async.eachSeries(options.servers, function (server, next) {
-
-                grunt.log.subhead('Deploying on server...');
+            async.eachSeries(options.servers, function (oServer, next) {
+                var server = _.extend({}, beamDefaultServerOptions, oServer);
+                grunt.log.subhead('Deployment on '+server.host+' (' + (++i) + ' of ' + options.servers.length + ')');
                 inquirer.prompt([
                     {
                         type: 'confirm',
                         name: 'deploy',
-                        message: 'Ready to start deployment on server ' + server.host + ' (or skip)? (' + (++i) + ' of ' + options.servers.length + ')',
+                        message: 'Ready to start deployment (or skip)?',
                         default: true
+                    },
+                    {
+                        type: 'input',
+                        name: 'user',
+                        message: 'Please enter your username:',
+                        default: server.user,
+                        when: function(answers) {
+                            return answers.deploy && server.enterCredentials;
+                        }
+                    },
+                    {
+                        type: 'password',
+                        name: 'password',
+                        message: 'Please enter your password:',
+                        when: function(answers) {
+                            return answers.deploy && server.enterCredentials;
+                        }
                     }
                 ], function (answers) {
                     if (answers.deploy) {
+                        if (answers.password) {
+                            server.password = answers.password;
+                        }
+
+                        if (answers.user) {
+                            server.username = answers.user;
+                        }
+
                         var connection = new Connection();
                         grunt.log.subhead('Connecting');
 
