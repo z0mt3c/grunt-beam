@@ -3,10 +3,12 @@ Yet another capistrano-less deployment flow for node.js applications with grunt.
 
 But attention: i would not consider it to be stable ;-) There are no tests and it's lacking a proper documentation for now, sorry!
 
+[![Dependency Status](https://gemnasium.com/z0mt3c/grunt-beam.png)](https://gemnasium.com/z0mt3c/grunt-beam)
+
 ## Configuration
 Simple example configuration with two servers:
 
-```json
+```js
 beam: {
     stage: {
         servers: [
@@ -29,7 +31,7 @@ beam: {
 ### Further configuration parameters
 ...and its current default options:
 
-```json
+```js
 var beamDefaultServerOptions = {
     enterCredentials: false,
     agent: process.env.SSH_AUTH_SOCK,
