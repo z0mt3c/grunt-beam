@@ -28,7 +28,7 @@ module.exports = function (grunt) {
         logFolderName: 'logs',
         targetPath: '/var/apps',
         releaseName: packageInfo.name + '-' + packageInfo.version,
-        nodeUser: '',
+        nodeUser: 'nodejs',
         nodeEnv: '',
         nodeEnvExtras: '',
         nodeBinary: 'node',
@@ -137,7 +137,7 @@ module.exports = function (grunt) {
                         type: 'input',
                         name: 'user',
                         message: 'Please enter your username:',
-                        default: server.user,
+                        default: server.username,
                         when: function (answers) {
                             return answers.deploy && server.enterCredentials;
                         }
@@ -284,6 +284,14 @@ module.exports = function (grunt) {
                 });
             };
 
+
+            var setPermissions = function (cb) {
+                grunt.log.subhead('Setting file owner');
+                operations.exec(grunt, connection, 'chown -Rf ' + options.nodeUser + ' ' + options.applicationPath(), function (err) {
+                    return cb(err);
+                });
+            };
+
             var stopApp = function (cb) {
                 grunt.log.subhead('Stopping application (if running)');
                 operations.exec(grunt, connection, 'stop ' + options._jobName(), true, function (err) {
@@ -348,6 +356,7 @@ module.exports = function (grunt) {
             } else if (taskArgs.rollback) {
                 tasks.push(chooseRelease);
                 tasks.push(writeUpstart);
+                tasks.push(setPermissions);
                 tasks.push(stopApp);
                 tasks.push(startApp);
             } else {
@@ -363,6 +372,7 @@ module.exports = function (grunt) {
                 tasks.push(createSymlink);
                 tasks.push(npmInstall);
                 tasks.push(writeUpstart);
+                tasks.push(setPermissions);
                 tasks.push(stopApp);
                 tasks.push(startApp);
             }
