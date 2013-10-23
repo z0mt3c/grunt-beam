@@ -1,43 +1,43 @@
 {
-    "name": "grunt-beam",
-    "description": "simple node deployment",
-    "version": "0.1.0",
-    "main": "tasks/deploy",
-    "author": {
-        "name": "Timo Behrmann",
-        "email": "timo.behrmann@gmail.com"
-    },
-    "keywords": [
-        "nodejs",
-        "deployment",
-        "deploy",
-        "ssh"
-    ],
-    "license": "MIT",
-    "engines": {
-        "node": ">= 0.8.0"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/z0mt3c/grunt-beam.git"
-    },
-    "bugs": {
-        "url": "https://github.com/z0mt3c/grunt-beam/issues"
-    },
-    "dependencies": {
-        "grunt-contrib-jshint": "~0.6.4",
-        "grunt": "~0.4.1",
-        "async": "0.2.9",
-        "moment": "*",
-        "ssh2": "~0.2.12",
-        "underscore": "~1.5.2",
-        "inquirer": "~0.3.4"
-    },
-    "peerDependencies": {
-        "grunt": "~0.4.1"
-    },
-    "devDependencies": {
-        "grunt-release": "~0.6.0"
-    },
-    "readmeFilename": "README.md"
+  "name": "grunt-beam",
+  "description": "simple node deployment",
+  "version": "0.1.1",
+  "main": "tasks/deploy",
+  "author": {
+    "name": "Timo Behrmann",
+    "email": "timo.behrmann@gmail.com"
+  },
+  "keywords": [
+    "nodejs",
+    "deployment",
+    "deploy",
+    "ssh"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/z0mt3c/grunt-beam.git"
+  },
+  "bugs": {
+    "url": "https://github.com/z0mt3c/grunt-beam/issues"
+  },
+  "dependencies": {
+    "grunt-contrib-jshint": "~0.6.4",
+    "grunt": "~0.4.1",
+    "async": "0.2.9",
+    "moment": "*",
+    "ssh2": "~0.2.12",
+    "underscore": "~1.5.2",
+    "inquirer": "~0.3.4"
+  },
+  "peerDependencies": {
+    "grunt": "~0.4.1"
+  },
+  "devDependencies": {
+    "grunt-release": "~0.6.0"
+  },
+  "readmeFilename": "README.md"
 }
