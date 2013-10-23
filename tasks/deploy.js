@@ -70,7 +70,7 @@ module.exports = function (grunt) {
             return this.appName + '.std.log';
         },
         _jobName: function () {
-            return this.jobName || 'node-'+this.appName;
+            return this.jobName || 'node-' + this.appName;
         },
         logFilePathSymErr: function () {
             return path.join(this.logPathSym(), (_.isFunction(this.logFileNameErr) ? this.logFileNameErr() : this.logFileNameErr));
@@ -99,6 +99,7 @@ module.exports = function (grunt) {
         };
 
         var options = _.extend({}, beamDefaultOptions, grunt.config.get('beam.' + group));
+        var lastRollbackRelease = null;
 
         grunt.log.writeln('Preparing deployment on target: ' + group + ' with a total of ' + options.servers.length + ' server(s)');
 
@@ -317,6 +318,12 @@ module.exports = function (grunt) {
                         return !_.contains(['.', '..'], item.filename);
                     });
 
+                    var defaultChoiceIndex = null;
+
+                    if (lastRollbackRelease && list.indexOf(lastRollbackRelease) !== -1) {
+                        defaultChoiceIndex = list.indexOf(lastRollbackRelease);
+                    }
+
                     var choices = _.pluck(list, 'filename');
 
                     inquirer.prompt([
@@ -324,11 +331,11 @@ module.exports = function (grunt) {
                             type: 'list',
                             name: 'release',
                             message: 'Rollback to...?',
-                            choices: choices
+                            choices: choices,
+                            default: defaultChoiceIndex
                         }
                     ], function (answers) {
-                        // Use user feedback for... whatever!!
-                        console.log(answers);
+                        lastRollbackRelease = answers.release;
 
                         grunt.log.subhead('Create symlink');
                         operations.exec(grunt, connection, 'ln -sf ' + path.join(options.releasesPath(), answers.release) + ' ' + options.currentLinkPath(), function (err) {
