@@ -70,7 +70,7 @@ module.exports = function (grunt) {
             return this.appName + '.std.log';
         },
         _jobName: function () {
-            return this.jobName || this.appName;
+            return this.jobName || 'node-'+this.appName;
         },
         logFilePathSymErr: function () {
             return path.join(this.logPathSym(), (_.isFunction(this.logFileNameErr) ? this.logFileNameErr() : this.logFileNameErr));
