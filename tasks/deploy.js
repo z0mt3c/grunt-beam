@@ -1,91 +1,131 @@
 'use strict';
 
-var path = require('path');
-var inquirer = require('inquirer');
-var async = require('async');
-var Connection = require('ssh2');
-var _ = require('underscore');
-
-var beamDefaultServerOptions = {
-    enterCredentials: false,
-    agent: process.env.SSH_AUTH_SOCK,
-    pingInterval: 3000,
-    port: 22,
-    username: 'root'
-};
-
 module.exports = function (grunt) {
+    var path = require('path');
+    var inquirer = require('inquirer');
+    var async = require('async');
+    var Connection = require('ssh2');
+    var _ = require('underscore');
+    var upstartGen = require('./upstart/upstartScriptGenerator');
+    var operations = require('./operations');
+    var packageInfo = grunt.file.readJSON('package.json');
+
+    var beamDefaultServerOptions = {
+        enterCredentials: false,
+        agent: process.env.SSH_AUTH_SOCK,
+        pingInterval: 3000,
+        port: 22,
+        username: 'root'
+    };
+
+    var beamDefaultOptions = {
+        appName: packageInfo.name,
+        packageInfo: packageInfo,
+        releaseArchive: './release.tar.gz',
+        releaseArchiveTarget: 'RELEASE.tar.gz',
+        releaseFolderName: 'releases',
+        currentLinkName: 'current',
+        logFolderName: 'logs',
+        targetPath: '/var/apps',
+        releaseName: packageInfo.name + '-' + packageInfo.version,
+        nodeUser: '',
+        nodeEnv: '',
+        nodeEnvExtras: '',
+        nodeBinary: 'node',
+        npmBinary: 'npm',
+        npmInstallOptions: '--production',
+        appCommand: packageInfo.main || 'index.js',
+
+        archiveFileName: function () {
+            return path.basename(this.releaseArchive, '.tar.gz');
+        },
+        applicationPath: function () {
+            return path.join(this.targetPath, this.appName);
+        },
+        releasesPath: function () {
+            return path.join(this.applicationPath(), this.releaseFolderName);
+        },
+        currentReleasePath: function () {
+            return path.join(this.releasesPath(), (_.isFunction(this.releaseName) ? this.releaseName() : this.releaseName));
+        },
+        releaseArchiveTargetPath: function () {
+            return path.join(this.currentReleasePath(), this.releaseArchiveTarget);
+        },
+        currentLinkPath: function () {
+            return path.join(this.applicationPath(), this.currentLinkName);
+        },
+        appCommandPathSym: function () {
+            return path.join(this.currentLinkPath(), this.appCommand);
+        },
+        logPath: function () {
+            return path.join(this.currentReleasePath(), this.logFolderName);
+        },
+        logPathSym: function () {
+            return path.join(this.currentLinkPath(), this.logFolderName);
+        },
+        logFileNameErr: function () {
+            return this.appName + '.err.log';
+        },
+        logFileNameStd: function () {
+            return this.appName + '.std.log';
+        },
+        _jobName: function () {
+            return this.jobName || this.appName;
+        },
+        logFilePathSymErr: function () {
+            return path.join(this.logPathSym(), (_.isFunction(this.logFileNameErr) ? this.logFileNameErr() : this.logFileNameErr));
+        },
+        logFilePathSymStd: function () {
+            return path.join(this.logPathSym(), (_.isFunction(this.logFileNameStd) ? this.logFileNameStd() : this.logFileNameStd));
+        },
+        upstartScriptPath: function () {
+            return path.join('/etc/init/', this._jobName() + '.conf');
+        }
+    };
+
     grunt.registerTask('beam', 'Prepare deployment', function (group) {
         // rough config check
         grunt.config.requires('beam.' + group + '.servers');
-        grunt.config.requires('beam.' + group + '.release');
-        grunt.config.requires('beam.' + group + '.path');
-        var options = grunt.config.get('beam.' + group);
+        grunt.config.requires('beam.' + group + '.releaseArchive');
+        grunt.config.requires('beam.' + group + '.targetPath');
 
-        var self = this;
-        var done = self.async();
-        var undeploy = grunt.option('undeploy') === true;
-        var removeDeployment = grunt.option('remove') === true;
-        var rollback = grunt.option('rollback');
+        var self = this,
+            done = self.async();
 
-        var defaultOptions = {};
-        defaultOptions.archiveName = path.basename(options.release, '.tar.gz');
-        defaultOptions.releasesDir = options.path + '/releases';
-        defaultOptions.currentLink = options.path + '/current';
-        defaultOptions.currentDir = options.path + '/releases/' + defaultOptions.archiveName;
-        defaultOptions.targetReleaseFileName = 'RELEASE.tar.gz';
-        defaultOptions.appName = 'default';
-        defaultOptions.jobName = options.appName || defaultOptions.appName;
-        defaultOptions.nodeUser = 'root';
-        defaultOptions.nodeEnv = 'production';
-        defaultOptions.appEnv = '';
-        defaultOptions.nodeBinary = 'node';
-        defaultOptions.npmBinary = 'npm';
-        defaultOptions.appCommand = 'index.js';
-        defaultOptions.logPath = defaultOptions.currentLink + '/logs';
-        defaultOptions.errLog = defaultOptions.logPath + '/node-' + (options.appName || defaultOptions.appName) + '.err.log';
-        defaultOptions.stdLog = defaultOptions.logPath + '/node-' + (options.appName || defaultOptions.appName) + '.std.log';
-        options = _.extend(defaultOptions, options);
+        var taskArgs = {
+            undeploy: grunt.option('undeploy') === true,
+            remove: grunt.option('remove') === true,
+            rollback: grunt.option('rollback')
+        };
+
+        var options = _.extend({}, beamDefaultOptions, grunt.config.get('beam.' + group));
 
         grunt.log.writeln('Preparing deployment on target: ' + group + ' with a total of ' + options.servers.length + ' server(s)');
 
-        var generateUpstart = function () {
-            var tmpl = '#!upstart\n' +
-                'description "' + options.appName + ' node app"\n' +
-                'author      "grunt-beam"\n' +
-                '\n' +
-                'start on runlevel [2345]\n' +
-                'stop on shutdown\n' +
-                '\n' +
-                'respawn\n' +
-                'respawn limit 99 5\n' +
-                '\n' +
-                'script\n' +
-                'cd ' + options.currentLink + ' && exec sudo -u ' + options.nodeUser + ' NODE_ENV=' + options.nodeEnv + ' ' + options.appEnv + ' ' + options.nodeBinary + ' ' + defaultOptions.currentLink + '/' + options.appCommand + ' 2>> ' + options.errLog + ' 1>> ' + options.stdLog + '\n' +
-                'end script\n';
-
-            return tmpl;
-        };
-
         var connect = function (cb, completed) {
             var i = 0;
+
             async.eachSeries(options.servers, function (oServer, next) {
                 var server = _.extend({}, beamDefaultServerOptions, oServer);
+
                 var readyMsg;
                 var type;
 
-                if (removeDeployment) {
-                    type = 'Undeploy'
+                if (taskArgs.remove) {
+                    type = 'Undeploy';
                     readyMsg = 'Ready to undeploy and remove all related files from server (or skip this server)?';
-                } else if (undeploy) {
-                    type = 'Undeploy'
+                } else if (taskArgs.undeploy) {
+                    type = 'Undeploy';
                     readyMsg = 'Ready to undeploy (or skip this server)?';
+                } else if (taskArgs.rollback) {
+                    type = 'Rollback';
+                    readyMsg = 'Ready to rollback release (or skip this server)?';
                 } else {
-                    type = 'Deploy'
+                    type = 'Deploy';
                     readyMsg = 'Ready to start deployment (or skip this server)?';
                 }
 
-                grunt.log.subhead(type + ' on '+server.host+' (' + (++i) + ' of ' + options.servers.length + ')');
+                grunt.log.subhead(type + ' on ' + server.host + ' (' + (++i) + ' of ' + options.servers.length + ')');
                 inquirer.prompt([
                     {
                         type: 'confirm',
@@ -98,7 +138,7 @@ module.exports = function (grunt) {
                         name: 'user',
                         message: 'Please enter your username:',
                         default: server.user,
-                        when: function(answers) {
+                        when: function (answers) {
                             return answers.deploy && server.enterCredentials;
                         }
                     },
@@ -106,7 +146,7 @@ module.exports = function (grunt) {
                         type: 'password',
                         name: 'password',
                         message: 'Please enter your password:',
-                        when: function(answers) {
+                        when: function (answers) {
                             return answers.deploy && server.enterCredentials;
                         }
                     }
@@ -154,98 +194,17 @@ module.exports = function (grunt) {
         };
 
         var processServer = function (server, connection, completed) {
-            // executes a remote command via ssh
-            var exec = function (cmd, shouldReturnData, next, ignoreStatusCode) {
-                connection.exec(cmd, function (error, stream) {
-                    grunt.log.writeln('$ ' + cmd);
-                    if (error) {
-                        next(error);
-                    } else {
-                        var returnData = '';
-
-                        stream.on('data', function (data) {
-                            data = data ? data.toString() : null;
-                            returnData += data;
-                            grunt.log.write(data);
-                        });
-
-                        stream.on('exit', function (code, signal) {
-                            grunt.log.debug('Exit-Code: ' + code + ', Signal: ' + signal);
-                            var mError = code === 0 || ignoreStatusCode ? null : new Error('Exit with code ' + code);
-                            if (!mError && !shouldReturnData) {
-                                grunt.log.ok();
-                            }
-                            next(mError, code, signal, returnData);
-                        });
-                    }
-                });
-            };
-
-            var upload = function (source, target, cb) {
-                connection.sftp(function (error, sftp) {
-                    if (error) {
-                        grunt.log.error(error);
-                        return cb(error);
-                    } else {
-                        grunt.log.writeln('Uploading ' + source + ' to ' + target);
-                        sftp.fastPut(source, target, function (err) {
-                            if (err) {
-                                grunt.log.error(err);
-                            } else {
-                                grunt.log.ok();
-                            }
-                            sftp.end();
-                            cb(err);
-                        });
-                    }
-                });
-            };
-
-            var write = function (content, target, cb) {
-                connection.sftp(function (error, sftp) {
-                    if (error) {
-                        grunt.log.error(error);
-                        return cb(error);
-                    } else {
-                        var stream = sftp.createWriteStream(target, { flags: 'w' });
-
-                        stream.on('data', function (data) {
-                            grunt.log.write(data);
-                        });
-
-                        stream.on('error', function (err) {
-                            grunt.log.error('Error on server: ' + server.host);
-                            grunt.log.error(err);
-                            if (err) {
-                                throw err;
-                            }
-                        });
-
-                        stream.once('open', function () {
-                            grunt.log.writeln('Writing to ' + target);
-                            stream.end(content, function (e) {
-                                sftp.end();
-                                if (!e) {
-                                    grunt.log.ok();
-                                }
-                                return cb(e);
-                            });
-                        });
-                    }
-                });
-            };
-
-
-            var checkUptime = function (cb) {
+            var printUptime = function (cb) {
                 grunt.log.subhead('Checking uptime');
-                exec('uptime', false, function (err) {
+                operations.exec(grunt, connection, 'uptime', function (err) {
                     return cb(err);
                 });
             };
 
             var checkNodeVersion = function (cb) {
                 grunt.log.subhead('Checking node.js version');
-                exec('node --version', true, function (err, exit, signal, data) {
+
+                operations.exec(grunt, connection, options.nodeBinary + ' --version', false, true, function (err, exit, signal, data) {
                     if (data) {
                         var result = data.match(new RegExp('v([0-9\\.]{1,8})'));
                         if (result) {
@@ -271,71 +230,103 @@ module.exports = function (grunt) {
 
             var uploadRelease = function (cb) {
                 grunt.log.subhead('Uploading deployment archive');
-                upload(options.release, options.currentDir + '/' + options.targetReleaseFileName, function (error) {
+                operations.upload(grunt, connection, options.releaseArchive, options.releaseArchiveTargetPath(), function (error) {
                     return cb(error);
                 });
             };
 
             var prepareDirectories = function (cb) {
                 grunt.log.subhead('Preparing directory structure');
-                exec('mkdir -p ' + options.currentDir + '/logs', false, function (err) {
+                operations.exec(grunt, connection, 'mkdir -p ' + options.logPath() + ' && mkdir -p ' + options.currentReleasePath(), function (err) {
                     return cb(err);
                 });
             };
 
             var extractRelease = function (cb) {
                 grunt.log.subhead('Extracting release');
-                exec('cd ' + options.currentDir + ' && tar xzfsv ' + options.targetReleaseFileName + ' && rm ' + options.targetReleaseFileName, false, function (err) {
+                operations.exec(grunt, connection, 'cd ' + options.currentReleasePath() + ' && tar xzfsv ' + options.releaseArchiveTargetPath() + ' && rm ' + options.releaseArchiveTargetPath(), function (err) {
                     return cb(err);
                 });
             };
 
             var npmInstall = function (cb) {
                 grunt.log.subhead('Install dependencies');
-                exec('cd ' + options.currentDir + ' && npm install --production', false, function (err) {
+                operations.exec(grunt, connection, 'cd ' + options.currentReleasePath() + ' && ' + options.npmBinary + ' install ' + options.npmInstallOptions, function (err) {
                     return cb(err);
                 });
             };
 
             var createSymlink = function (cb) {
                 grunt.log.subhead('Create symlink');
-                exec('ln -sf ' + options.currentDir + ' ' + options.currentLink, false, function (err) {
+                operations.exec(grunt, connection, 'ln -sf ' + options.currentReleasePath() + ' ' + options.currentLinkPath(), function (err) {
                     return cb(err);
                 });
             };
 
             var writeUpstart = function (cb) {
                 grunt.log.subhead('Creating upstart script');
-                write(generateUpstart(), '/etc/init/' + options.appName + '.conf', function (error) {
+                operations.write(grunt, connection, upstartGen(options), options.upstartScriptPath(), function (error) {
                     return cb(error);
                 });
             };
 
             var removeUpstart = function (cb) {
                 grunt.log.subhead('Removing upstart script');
-                exec('rm /etc/init/' + options.appName + '.conf', false, function (err) {
+                operations.exec(grunt, connection, 'rm ' + options.upstartScriptPath(), function (err) {
                     return cb(err);
                 });
             };
 
             var cleanDeployment = function (cb) {
                 grunt.log.subhead('Removing deployment');
-                exec('rm -Rf ' + options.path, false, function (err) {
+                operations.exec(grunt, connection, 'rm -Rf ' + options.applicationPath(), function (err) {
                     return cb(err);
                 });
             };
 
             var stopApp = function (cb) {
                 grunt.log.subhead('Stopping application (if running)');
-                exec('stop ' + options.jobName, false, function (err) {
+                operations.exec(grunt, connection, 'stop ' + options._jobName(), true, function (err) {
                     return cb(err);
                 }, true);
             };
 
             var startApp = function (cb) {
                 grunt.log.subhead('Starting application');
-                exec('start ' + options.jobName, false, function (err) {
+                operations.exec(grunt, connection, 'start ' + options._jobName(), function (err) {
                     return cb(err);
+                });
+            };
+
+            var chooseRelease = function (cb) {
+                grunt.log.subhead('Starting application');
+                operations.readdir(grunt, connection, options.releasesPath(), function (err, list) {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    list = _.filter(list, function (item) {
+                        return !_.contains(['.', '..'], item.filename);
+                    });
+
+                    var choices = _.pluck(list, 'filename');
+
+                    inquirer.prompt([
+                        {
+                            type: 'list',
+                            name: 'release',
+                            message: 'Rollback to...?',
+                            choices: choices
+                        }
+                    ], function (answers) {
+                        // Use user feedback for... whatever!!
+                        console.log(answers);
+
+                        grunt.log.subhead('Create symlink');
+                        operations.exec(grunt, connection, 'ln -sf ' + path.join(options.releasesPath(), answers.release) + ' ' + options.currentLinkPath(), function (err) {
+                            return cb(err);
+                        });
+                    });
                 });
             };
 
@@ -347,17 +338,20 @@ module.exports = function (grunt) {
 
             var tasks = [];
 
-            if (undeploy || removeDeployment) {
+            if (taskArgs.undeploy || taskArgs.remove) {
                 tasks.push(stopApp);
                 tasks.push(removeUpstart);
 
-                if (removeDeployment) {
+                if (taskArgs.remove) {
                     tasks.push(cleanDeployment);
                 }
-            } else if (rollback) {
-
+            } else if (taskArgs.rollback) {
+                tasks.push(chooseRelease);
+                tasks.push(writeUpstart);
+                tasks.push(stopApp);
+                tasks.push(startApp);
             } else {
-                tasks.push(checkUptime);
+                tasks.push(printUptime);
 
                 if (options.nodeVersion) {
                     tasks.push(checkNodeVersion);
@@ -371,8 +365,9 @@ module.exports = function (grunt) {
                 tasks.push(writeUpstart);
                 tasks.push(stopApp);
                 tasks.push(startApp);
-                tasks.push(closeConnection);
             }
+
+            tasks.push(closeConnection);
 
             async.series(tasks, function () {
                 completed();
@@ -387,7 +382,18 @@ module.exports = function (grunt) {
                 });
             },
             function () {
-                grunt.log.ok('Deployment completed!');
+                grunt.log.subhead('Job completed');
+
+                if (taskArgs.remove) {
+                    grunt.log.ok('Deployment removal completed!');
+                } else if (taskArgs.undeploy) {
+                    grunt.log.ok('Undeploy completed!');
+                } else if (taskArgs.rollback) {
+                    grunt.log.ok('Rollback completed!');
+                } else {
+                    grunt.log.ok('Deployment completed!');
+                }
+
                 done();
             }
         );

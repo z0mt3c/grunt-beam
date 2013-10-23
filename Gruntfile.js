@@ -5,34 +5,39 @@ module.exports = function (grunt) {
         jshint: {
             all: [
                 'Gruntfile.js',
-                'tasks/*.js'
+                'tasks/**/*.js'
             ],
             options: {
                 jshintrc: '.jshintrc'
             }
         },
+        release: {
+            options: {
+                tagName: 'v<%= version %>'
+            }
+        }
+        /*
         beam: {
             stage: {
                 servers: [
                     {
-                        host: 'h',
-                        port: 22,
-                        username: 'x',
-                        password: 'y'
+                        host: 'server1.domain.tld',
+                        enterCredentials: true
+                    },
+                    {
+                        host: 'server1.domain.tld'
                     }
                 ],
-                appName: 'testApp',
-                path: '/tmp',
-                user: 'root',
-                release: './package.json',
-                nodeVersion: '0.10'
+                nodeUser: 'root',
+                nodeEnv: 'production',
+                targetPath: '/root/apps',
+                releaseArchive: 'out/test.tar.gz'
             }
         }
+        */
     });
 
     grunt.loadTasks('tasks');
     grunt.loadNpmTasks('grunt-contrib-jshint');
-    grunt.loadNpmTasks('grunt-contrib-clean');
-    grunt.loadNpmTasks('grunt-contrib-nodeunit');
-    grunt.registerTask('default', ['deploy']);
+    grunt.registerTask('default', ['jshint']);
 };
