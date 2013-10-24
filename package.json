@@ -25,19 +25,18 @@
     "url": "https://github.com/z0mt3c/grunt-beam/issues"
   },
   "dependencies": {
-    "grunt-contrib-jshint": "~0.6.4",
-    "grunt": "~0.4.1",
-    "async": "0.2.9",
-    "moment": "*",
-    "ssh2": "~0.2.12",
-    "underscore": "~1.5.2",
-    "inquirer": "~0.3.4"
+    "grunt-contrib-jshint": "0.7.x",
+    "grunt": "0.4.x",
+    "async": "0.2.x",
+    "ssh2": "0.2.x",
+    "underscore": "1.5.x",
+    "inquirer": "0.3.x"
   },
   "peerDependencies": {
-    "grunt": "~0.4.1"
+    "grunt": "0.4.x"
   },
   "devDependencies": {
-    "grunt-release": "~0.6.0"
+    "grunt-release": "0.6.x"
   },
   "readmeFilename": "README.md"
 }

@@ -29,7 +29,7 @@ module.exports = function (grunt) {
         targetPath: '/var/apps',
         releaseName: packageInfo.name + '-' + packageInfo.version,
         nodeUser: 'nodejs',
-        nodeEnv: '',
+        nodeEnv: 'production',
         nodeEnvExtras: '',
         nodeBinary: 'node',
         npmBinary: 'npm',
@@ -70,7 +70,7 @@ module.exports = function (grunt) {
             return this.appName + '.std.log';
         },
         _jobName: function () {
-            return this.jobName || 'node-' + this.appName;
+            return this.jobName || 'node-' + this.appName + '-' + this.nodeEnv;
         },
         logFilePathSymErr: function () {
             return path.join(this.logPathSym(), (_.isFunction(this.logFileNameErr) ? this.logFileNameErr() : this.logFileNameErr));
