@@ -84,6 +84,20 @@ module.exports = function (grunt) {
     };
 
     grunt.registerTask('beam', 'Prepare deployment', function (group) {
+        if (!group) {
+            grunt.log.writeln('Usage:          grunt beam:<group>');
+            grunt.log.writeln('');
+            grunt.log.writeln('Possible parameters:');
+            grunt.log.writeln('--redeploy      Normal deployment but cleans target directory before');
+            grunt.log.writeln('--undeploy      Undeploys your application (stop & remove upstart script)');
+            grunt.log.writeln('--remove        Undeploys and removes all application data');
+            grunt.log.writeln('--rollback      Lets you choose a release from the server which has been deployed before');
+            grunt.log.writeln('--clean         Lets you choose which old releases should be removed from the server');
+            grunt.log.writeln('');
+
+            grunt.fail.fatal('No configuration target defined. Please run grunt beam:<group>');
+        }
+
         // rough config check
         grunt.config.requires('beam.' + group + '.servers');
         grunt.config.requires('beam.' + group + '.releaseArchive');
@@ -95,6 +109,8 @@ module.exports = function (grunt) {
         var taskArgs = {
             undeploy: grunt.option('undeploy') === true,
             remove: grunt.option('remove') === true,
+            redeploy: grunt.option('redeploy') === true,
+            clean: grunt.option('clean') === true,
             rollback: grunt.option('rollback')
         };
 
@@ -121,6 +137,9 @@ module.exports = function (grunt) {
                 } else if (taskArgs.rollback) {
                     type = 'Rollback';
                     readyMsg = 'Ready to rollback release (or skip this server)?';
+                } else if (taskArgs.clean) {
+                    type = 'Clean releases';
+                    readyMsg = 'Ready to clean release (or skip this server)?';
                 } else {
                     type = 'Deploy';
                     readyMsg = 'Ready to start deployment (or skip this server)?';
@@ -250,6 +269,13 @@ module.exports = function (grunt) {
                 });
             };
 
+            var cleanCurrentReleaseFolder = function (cb) {
+                grunt.log.subhead('Cleaning release directory');
+                operations.exec(grunt, connection, 'rm -Rf ' + options.currentReleasePath() + '/*', function (err) {
+                    return cb(err);
+                });
+            };
+
             var npmInstall = function (cb) {
                 grunt.log.subhead('Install dependencies');
                 operations.exec(grunt, connection, 'cd ' + options.currentReleasePath() + ' && ' + options.npmBinary + ' install ' + options.npmInstallOptions, function (err) {
@@ -345,6 +371,48 @@ module.exports = function (grunt) {
                 });
             };
 
+            var chooseReleases = function (cb) {
+                grunt.log.subhead('Starting application');
+                operations.readdir(grunt, connection, options.releasesPath(), function (err, list) {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    list = _.filter(list, function (item) {
+                        return !_.contains(['.', '..'], item.filename);
+                    });
+
+                    var choices = _.map(list, function(item) {
+                        return {
+                            name: item.filename,
+                            checked: false
+                        };
+                    });
+
+                    inquirer.prompt([
+                        {
+                            type: 'checkbox',
+                            name: 'release',
+                            message: 'Choose release which should be removed from the server?',
+                            choices: choices
+                        }
+                    ], function (answers) {
+                        if (answers && answers.release && answers.release.length > 0) {
+                            var rmCmd = 'rm -Rf ' + (_.map(answers.release, function(name) {
+                                return path.join(options.releasesPath(), name);
+                            }).join(' '));
+
+                            operations.exec(grunt, connection, rmCmd, function (err) {
+                                return cb(err);
+                            });
+                        } else {
+                            grunt.log.ok('Nothing to clean.')
+                            return cb();
+                        }
+                    });
+                });
+            };
+
             var closeConnection = function (cb) {
                 grunt.log.subhead('Closing connection');
                 connection.end();
@@ -366,6 +434,8 @@ module.exports = function (grunt) {
                 tasks.push(setPermissions);
                 tasks.push(stopApp);
                 tasks.push(startApp);
+            } else if (taskArgs.clean) {
+                tasks.push(chooseReleases);
             } else {
                 tasks.push(printUptime);
 
@@ -374,6 +444,11 @@ module.exports = function (grunt) {
                 }
 
                 tasks.push(prepareDirectories);
+
+                if (taskArgs.redeploy) {
+                    tasks.push(cleanCurrentReleaseFolder)
+                }
+
                 tasks.push(uploadRelease);
                 tasks.push(extractRelease);
                 tasks.push(createSymlink);
@@ -407,6 +482,8 @@ module.exports = function (grunt) {
                     grunt.log.ok('Undeploy completed!');
                 } else if (taskArgs.rollback) {
                     grunt.log.ok('Rollback completed!');
+                } else if (taskArgs.clean) {
+                    grunt.log.ok('Cleaning completed!');
                 } else {
                     grunt.log.ok('Deployment completed!');
                 }
