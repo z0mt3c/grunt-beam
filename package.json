@@ -1,7 +1,7 @@
 {
   "name": "grunt-beam",
   "description": "simple node deployment",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "main": "tasks/deploy",
   "author": {
     "name": "Timo Behrmann",
