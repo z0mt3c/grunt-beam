@@ -311,7 +311,6 @@ module.exports = function (grunt) {
                 });
             };
 
-
             var setPermissions = function (cb) {
                 grunt.log.subhead('Setting file owner');
                 operations.exec(grunt, connection, 'chown -Rf ' + options.nodeUser + ' ' + options.applicationPath(), function (err) {
@@ -331,6 +330,18 @@ module.exports = function (grunt) {
                 operations.exec(grunt, connection, 'start ' + options._jobName(), function (err) {
                     return cb(err);
                 });
+            };
+
+            var logTail = function (cb) {
+                grunt.log.subhead('Log (Error)');
+                setTimeout(function () {
+                    operations.exec(grunt, connection, 'tail -n 20 ' + options.logFilePathSymErr(), true, function (err1) {
+                        grunt.log.subhead('Log (Std)');
+                        operations.exec(grunt, connection, 'tail -n 20 ' + options.logFilePathSymStd(), true, function (err2) {
+                            return cb(err1 || err2);
+                        });
+                    });
+                }, 1500);
             };
 
             var chooseRelease = function (cb) {
@@ -382,7 +393,7 @@ module.exports = function (grunt) {
                         return !_.contains(['.', '..'], item.filename);
                     });
 
-                    var choices = _.map(list, function(item) {
+                    var choices = _.map(list, function (item) {
                         return {
                             name: item.filename,
                             checked: false
@@ -398,7 +409,7 @@ module.exports = function (grunt) {
                         }
                     ], function (answers) {
                         if (answers && answers.release && answers.release.length > 0) {
-                            var rmCmd = 'rm -Rf ' + (_.map(answers.release, function(name) {
+                            var rmCmd = 'rm -Rf ' + (_.map(answers.release,function (name) {
                                 return path.join(options.releasesPath(), name);
                             }).join(' '));
 
@@ -406,7 +417,7 @@ module.exports = function (grunt) {
                                 return cb(err);
                             });
                         } else {
-                            grunt.log.ok('Nothing to clean.')
+                            grunt.log.ok('Nothing to clean.');
                             return cb();
                         }
                     });
@@ -434,6 +445,7 @@ module.exports = function (grunt) {
                 tasks.push(setPermissions);
                 tasks.push(stopApp);
                 tasks.push(startApp);
+                tasks.push(logTail);
             } else if (taskArgs.clean) {
                 tasks.push(chooseReleases);
             } else {
@@ -446,7 +458,7 @@ module.exports = function (grunt) {
                 tasks.push(prepareDirectories);
 
                 if (taskArgs.redeploy) {
-                    tasks.push(cleanCurrentReleaseFolder)
+                    tasks.push(cleanCurrentReleaseFolder);
                 }
 
                 tasks.push(uploadRelease);
@@ -457,6 +469,7 @@ module.exports = function (grunt) {
                 tasks.push(setPermissions);
                 tasks.push(stopApp);
                 tasks.push(startApp);
+                tasks.push(logTail);
             }
 
             tasks.push(closeConnection);
