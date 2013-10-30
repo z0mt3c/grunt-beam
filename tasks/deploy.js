@@ -9,6 +9,7 @@ module.exports = function (grunt) {
     var upstartGen = require('./upstart/upstartScriptGenerator');
     var operations = require('./operations');
     var packageInfo = grunt.file.readJSON('package.json');
+    var messages = require('./messages');
 
     var beamDefaultServerOptions = {
         enterCredentials: false,
@@ -93,6 +94,9 @@ module.exports = function (grunt) {
             grunt.log.writeln('--remove        Undeploys and removes all application data');
             grunt.log.writeln('--rollback      Lets you choose a release from the server which has been deployed before');
             grunt.log.writeln('--clean         Lets you choose which old releases should be removed from the server');
+            grunt.log.writeln('--restart       Restarts the application on the configured servers');
+            grunt.log.writeln('--uptime        Prints the uptime on the configured servers');
+            grunt.log.writeln('--log           Prints the last 20 lines of std and err log');
             grunt.log.writeln('');
 
             grunt.fail.fatal('No configuration target defined. Please run grunt beam:<group>');
@@ -106,13 +110,28 @@ module.exports = function (grunt) {
         var self = this,
             done = self.async();
 
-        var taskArgs = {
-            undeploy: grunt.option('undeploy') === true,
-            remove: grunt.option('remove') === true,
-            redeploy: grunt.option('redeploy') === true,
-            clean: grunt.option('clean') === true,
-            rollback: grunt.option('rollback')
-        };
+
+        var mode;
+
+        if (grunt.option('undeploy') === true) {
+            mode = 'undeploy';
+        } else if (grunt.option('remove') === true) {
+            mode = 'remove';
+        } else if (grunt.option('redeploy') === true) {
+            mode = 'redeploy';
+        } else if (grunt.option('clean') === true) {
+            mode = 'clean';
+        } else if (grunt.option('rollback') === true) {
+            mode = 'rollback';
+        } else if (grunt.option('restart') === true) {
+            mode = 'restart';
+        } else if (grunt.option('log') === true) {
+            mode = 'log';
+        } else if (grunt.option('uptime') === true) {
+            mode = 'uptime';
+        } else {
+            mode = 'deploy';
+        }
 
         var options = _.extend({}, beamDefaultOptions, grunt.config.get('beam.' + group));
         var lastRollbackRelease = null;
@@ -125,25 +144,8 @@ module.exports = function (grunt) {
             async.eachSeries(options.servers, function (oServer, next) {
                 var server = _.extend({}, beamDefaultServerOptions, oServer);
 
-                var readyMsg;
-                var type;
-
-                if (taskArgs.remove) {
-                    type = 'Undeploy';
-                    readyMsg = 'Ready to undeploy and remove all related files from server (or skip this server)?';
-                } else if (taskArgs.undeploy) {
-                    type = 'Undeploy';
-                    readyMsg = 'Ready to undeploy (or skip this server)?';
-                } else if (taskArgs.rollback) {
-                    type = 'Rollback';
-                    readyMsg = 'Ready to rollback release (or skip this server)?';
-                } else if (taskArgs.clean) {
-                    type = 'Clean releases';
-                    readyMsg = 'Ready to clean release (or skip this server)?';
-                } else {
-                    type = 'Deploy';
-                    readyMsg = 'Ready to start deployment (or skip this server)?';
-                }
+                var readyMsg = messages[mode].ready;
+                var type = messages[mode].type;
 
                 grunt.log.subhead(type + ' on ' + server.host + ' (' + (++i) + ' of ' + options.servers.length + ')');
                 inquirer.prompt([
@@ -432,22 +434,30 @@ module.exports = function (grunt) {
 
             var tasks = [];
 
-            if (taskArgs.undeploy || taskArgs.remove) {
+            if (mode === 'undeploy' || mode === 'remove') {
                 tasks.push(stopApp);
                 tasks.push(removeUpstart);
 
-                if (taskArgs.remove) {
+                if (mode === 'remove') {
                     tasks.push(cleanDeployment);
                 }
-            } else if (taskArgs.rollback) {
+            } else if (mode === 'rollback') {
                 tasks.push(chooseRelease);
                 tasks.push(writeUpstart);
                 tasks.push(setPermissions);
                 tasks.push(stopApp);
                 tasks.push(startApp);
                 tasks.push(logTail);
-            } else if (taskArgs.clean) {
+            } else if (mode === 'clean') {
                 tasks.push(chooseReleases);
+            } else if (mode === 'restart') {
+                tasks.push(stopApp);
+                tasks.push(startApp);
+                tasks.push(logTail);
+            } else if (mode === 'uptime') {
+                tasks.push(printUptime);
+            } else if (mode === 'log') {
+                tasks.push(logTail);
             } else {
                 tasks.push(printUptime);
 
@@ -457,7 +467,7 @@ module.exports = function (grunt) {
 
                 tasks.push(prepareDirectories);
 
-                if (taskArgs.redeploy) {
+                if (mode === 'redeploy') {
                     tasks.push(cleanCurrentReleaseFolder);
                 }
 
@@ -488,18 +498,7 @@ module.exports = function (grunt) {
             },
             function () {
                 grunt.log.subhead('Job completed');
-
-                if (taskArgs.remove) {
-                    grunt.log.ok('Deployment removal completed!');
-                } else if (taskArgs.undeploy) {
-                    grunt.log.ok('Undeploy completed!');
-                } else if (taskArgs.rollback) {
-                    grunt.log.ok('Rollback completed!');
-                } else if (taskArgs.clean) {
-                    grunt.log.ok('Cleaning completed!');
-                } else {
-                    grunt.log.ok('Deployment completed!');
-                }
+                grunt.log.ok(messages[mode].complete);
 
                 done();
             }
