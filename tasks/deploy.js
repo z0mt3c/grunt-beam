@@ -287,7 +287,7 @@ module.exports = function (grunt) {
 
             var createSymlink = function (cb) {
                 grunt.log.subhead('Create symlink');
-                operations.exec(grunt, connection, 'ln -sf ' + options.currentReleasePath() + ' ' + options.currentLinkPath(), function (err) {
+                operations.exec(grunt, connection, 'ln -snf ' + options.currentReleasePath() + ' ' + options.currentLinkPath(), function (err) {
                     return cb(err);
                 });
             };
@@ -377,7 +377,7 @@ module.exports = function (grunt) {
                         lastRollbackRelease = answers.release;
 
                         grunt.log.subhead('Create symlink');
-                        operations.exec(grunt, connection, 'ln -sf ' + path.join(options.releasesPath(), answers.release) + ' ' + options.currentLinkPath(), function (err) {
+                        operations.exec(grunt, connection, 'ln -snf ' + path.join(options.releasesPath(), answers.release) + ' ' + options.currentLinkPath(), function (err) {
                             return cb(err);
                         });
                     });
