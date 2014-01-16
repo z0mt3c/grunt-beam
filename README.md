@@ -18,6 +18,13 @@ beam: {
             },
             {
                 host: 'server1.domain.tld'
+            },
+            {
+                host: 'xxx.xxx.xxx.xxx',
+                enterCredentials: false,
+                username: 'xxxx',
+                privateKey: './id_rsa',
+                passphrase: 'xxxxxx'
             }
         ],
         nodeUser: 'root',
@@ -63,27 +70,18 @@ var beamDefaultOptions = {
 ## Supported commands
 
 ```bash
-grunt beam:stage
+Usage:          grunt beam:<group>
+
+Possible parameters:
+--redeploy      Normal deployment but cleans target directory before
+--undeploy      Will undeploy your node application. That means: stopping the application and remove all files which belong to the release. (Attention includes default log-path)
+--remove        Undeploys and removes all application data
+--rollback      Lets you choose a release from the server which has been deployed before
+--clean         Lets you choose which old releases should be removed from the server
+--restart       Restarts the application on the configured servers
+--uptime        Prints the uptime on the configured servers
+--log           Prints the last 20 lines of std and err log
 ```
-Will deploy your application on all servers configured in the configured <stage> group (one by one; each deployment needs to be confirmed).
-That means: creating all necessary folders, uploading the configured archive-file, extracting it, creating an upstart-script and finally starting it!
-
-```bash
-grunt beam:stage --undeploy
-```
-Will undeploy your node application. That means: stopping the application and removing the upstart-script.
-
-```bash
-grunt beam:stage --remove
-```
-Will undeploy your node application. That means: stopping the application and remove all files which belong to the release. (Attention includes default log-path)
-
-```bash
-grunt beam:stage --rollback
-```
-Will receive all releases from the releases folder on the server, change the 'current'-symlink to the selected release and restart the application.
-
-
 
 
 
