@@ -25,12 +25,12 @@
     "url": "https://github.com/z0mt3c/grunt-beam/issues"
   },
   "dependencies": {
-    "grunt-contrib-jshint": "0.7.x",
+    "grunt-contrib-jshint": "0.8.x",
     "grunt": "0.4.x",
     "async": "0.2.x",
     "ssh2": "0.2.x",
     "underscore": "1.5.x",
-    "inquirer": "0.3.x"
+    "inquirer": "0.4.x"
   },
   "peerDependencies": {
     "grunt": "0.4.x"
