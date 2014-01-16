@@ -2,6 +2,7 @@
 
 module.exports = function (grunt) {
     var path = require('path');
+    var fs = require('fs');
     var inquirer = require('inquirer');
     var async = require('async');
     var Connection = require('ssh2');
@@ -180,6 +181,10 @@ module.exports = function (grunt) {
 
                         if (answers.user) {
                             server.username = answers.user;
+                        }
+
+                        if (server.privateKey) {
+                            server.privateKey = fs.readFileSync(server.privateKey);
                         }
 
                         var connection = new Connection();
